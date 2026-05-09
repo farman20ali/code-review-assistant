@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeSense — AI Code Review Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2234;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --positive: #10b981;
+    --warning: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --card: #131f33;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-size: 28px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .tagline {
+    font-size: 15px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .main-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: fadeUp 0.6s ease 0.1s both;
+    box-shadow: 0 0 60px rgba(0, 212, 255, 0.05);
+  }
+
+  .card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .dot-red { background: #ef4444; }
+  .dot-yellow { background: #f59e0b; }
+  .dot-green { background: #10b981; }
+
+  .controls {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .api-key-container {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: var(--surface2);
+    flex-wrap: wrap;
+  }
+
+  .api-key-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-key-input:focus { border-color: var(--accent); }
+
+  .lang-label {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .lang-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .lang-select:focus { border-color: var(--accent); }
+
+  .focus-badge {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+
+  .badge.readability { background: rgba(0, 212, 255, 0.1); color: var(--accent); border-color: rgba(0, 212, 255, 0.3); }
+  .badge.structure { background: rgba(124, 58, 237, 0.1); color: #a78bfa; border-color: rgba(124, 58, 237, 0.3); }
+  .badge.maintainability { background: rgba(16, 185, 129, 0.1); color: var(--positive); border-color: rgba(16, 185, 129, 0.3); }
+
+  .editor-area {
+    position: relative;
+  }
+
+  .line-numbers {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 48px;
+    background: var(--surface2);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 12px;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .line-num { line-height: 21px; }
+
+  textarea {
+    width: 100%;
+    min-height: 280px;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 21px;
+    color: var(--text);
+    padding: 20px 20px 20px 64px;
+    caret-color: var(--accent);
+  }
+
+  textarea::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .action-bar {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+  }
+
+  .char-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .review-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .review-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background 0.2s;
+  }
+
+  .review-btn:hover::before { background: rgba(255,255,255,0.1); }
+  .review-btn:active { transform: scale(0.98); }
+  .review-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-icon { font-size: 16px; }
+
+  .loading {
+    display: none;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .loading.show { display: block; }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  .loading-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .loading-steps {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    animation: pulse 1.2s ease infinite;
+  }
+
+  .step-dot:nth-child(2) { animation-delay: 0.2s; }
+  .step-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  .results {
+    display: none;
+    padding: 24px;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .results.show { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .results-title {
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .score-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .score-high { background: rgba(16, 185, 129, 0.15); color: var(--positive); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .score-mid { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .score-low { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  .positive-card {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .positive-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .positive-label {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--positive);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .positive-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .improvements-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .improvement-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    transition: border-color 0.2s, transform 0.2s;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .improvement-card:hover {
+    border-color: rgba(0, 212, 255, 0.3);
+    transform: translateX(4px);
+  }
+
+  .improvement-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .num-1 { background: rgba(0, 212, 255, 0.15); color: var(--accent); }
+  .num-2 { background: rgba(124, 58, 237, 0.15); color: #a78bfa; }
+  .num-3 { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+
+  .severity-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 8px;
+  }
+
+  .severity-high { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+  .severity-medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+  .severity-low { background: rgba(16, 185, 129, 0.2); color: var(--positive); }
+
+  .improvement-content { flex: 1; }
+
+  .improvement-category {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .cat-readability { color: var(--accent); }
+  .cat-structure { color: #a78bfa; }
+  .cat-maintainability { color: var(--positive); }
+  .cat-performance { color: var(--warning); }
+  .cat-security { color: #f87171; }
+
+  .improvement-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .improvement-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .code-suggestion {
+    margin-top: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #86efac;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .summary-bar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .summary-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .summary-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .summary-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .summary-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .error-msg {
+    display: none;
+    padding: 16px 24px;
+    background: rgba(239, 68, 68, 0.1);
+    border-top: 1px solid rgba(239, 68, 68, 0.3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #ef4444;
+  }
+
+  .error-msg.show { display: block; }
+
+  .reset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .footer {
+    text-align: center;
+    margin-top: 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    animation: fadeUp 0.6s ease 0.3s both;
+  }
+
+  .footer span { color: var(--accent); }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { background: var(--border); transform: scale(1); }
+    50% { background: var(--accent); transform: scale(1.3); }
+  }
+
+  .sample-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sample-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .love-banner {
+    text-align: center;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    padding: 12px;
+    background: rgba(0, 212, 255, 0.05);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+    letter-spacing: 0.5px;
+  }
+
+  @media (max-width: 600px) {
+    .focus-badge { display: none; }
+    .summary-bar { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="love-banner">
+  Built with <span style="color: #ef4444;">❤️</span> for the Cream Challenge
+</div>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">CodeSense</span>
+    </div>
+    <p class="tagline">// AI-powered code review assistant</p>
+  </div>
+
+  <div class="main-card">
+    <div class="card-header">
+      <span class="card-title">code_review.ai</span>
+      <div class="dots">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+      </div>
+    </div>
+
+    <!-- API Key Input -->
+    <div class="api-key-container">
+      <span class="lang-label">provider://</span>
+      <select class="lang-select" id="providerSelect" onchange="updateProviderHint()">
+        <option value="groq">Groq (Llama 3) — Free</option>
+        <option value="gemini">Google Gemini — Free</option>
+        <option value="xai">xAI Grok — Best for Code</option>
+        <option value="openai">OpenAI (GPT-4o) — Paid</option>
+        <option value="anthropic">Anthropic (Claude 3) — Paid</option>
+      </select>
+      
+      <span class="lang-label" style="margin-left:8px;">api_key://</span>
+      <input type="password" id="apiKeyInput" class="api-key-input" placeholder="Get your free Groq API Key at console.groq.com" />
+    </div>
+    <div style="font-size: 10px; color: var(--muted); padding: 8px 24px; text-align: right; border-bottom: 1px solid var(--border);">
+      * Your API key is stored locally in your browser and never shared with any 3rd party except the AI provider.
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <span class="lang-label">lang://</span>
+      <select class="lang-select" id="langSelect">
+        <option value="Java">Java</option>
+        <option value="Python">Python</option>
+        <option value="JavaScript">JavaScript</option>
+        <option value="TypeScript">TypeScript</option>
+        <option value="Go">Go</option>
+        <option value="C#">C#</option>
+        <option value="SQL">SQL</option>
+      </select>
+      
+      <span class="lang-label" style="margin-left:8px;">model://</span>
+      <input type="text" id="modelInput" class="lang-select" style="width: 220px;" value="llama-3.3-70b-versatile" placeholder="e.g. grok-4.3" list="modelList" />
+      <datalist id="modelList"></datalist>
+      <span class="lang-label" style="margin-left:8px;">model_list://</span>
+      <select class="lang-select" id="modelSelect" style="width: 220px;" onchange="syncModelFromSelect()">
+        <option value="">Select model...</option>
+      </select>
+      <button class="sample-btn" style="margin-left:8px;" onclick="fetchModels()">Fetch models</button>
+      <button class="sample-btn" style="margin-left:8px;" onclick="loadSample()">Load sample</button>
+      <div class="focus-badge">
+        <span class="badge readability">Readability</span>
+        <span class="badge structure">Structure</span>
+        <span class="badge maintainability">Maintainability</span>
+      </div>
+    </div>
+
+    <!-- Editor -->
+    <div class="editor-area">
+      <div class="line-numbers" id="lineNumbers">
+        <div class="line-num">1</div>
+      </div>
+      <textarea 
+        id="codeInput" 
+        placeholder="// Paste your code here for AI review...&#10;// CodeSense will analyze readability, structure &amp; maintainability"
+        oninput="updateLineNumbers(); updateCharCount()"
+        onscroll="syncScroll()"
+        spellcheck="false"
+      ></textarea>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <span class="char-count" id="charCount">0 characters</span>
+      <button class="review-btn" id="reviewBtn" onclick="reviewCode()">
+        <span class="btn-icon">⚡</span>
+        Review Code
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p class="loading-text">Analyzing your code...</p>
+      <div class="loading-steps">
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <div class="results-header">
+        <span class="results-title">// review_output</span>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="score-badge" id="scoreBadge">—</div>
+          <button class="reset-btn" onclick="resetReview()">↺ New Review</button>
+        </div>
+      </div>
+
+      <div class="positive-card" id="positiveCard">
+        <div class="positive-icon">✅</div>
+        <div>
+          <div class="positive-label">What's Working Well</div>
+          <div class="positive-text" id="positiveText"></div>
+        </div>
+      </div>
+
+      <div class="improvements-grid" id="improvementsGrid"></div>
+
+      <div class="summary-bar" id="summaryBar"></div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-msg" id="errorMsg">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px">
+        <span id="errorText"></span>
+        <button class="reset-btn" id="retryBtn" onclick="reviewCode()" style="display:none;white-space:nowrap">↺ Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    CodeSense v1.0 · Built by Farman Ali Ujjan
+  </div>
+</div>
+
+<script>
+const SAMPLE_CODE = `public class UserService {
+    private Database db;
+    
+    public UserService() {
+        db = new Database();
+    }
+    
+    public User getUser(int id) {
+        User u = db.query("SELECT * FROM users WHERE id=" + id);
+        if(u != null) {
+            return u;
+        }
+        return null;
+    }
+    
+    public boolean saveUser(User u) {
+        try {
+            db.execute("INSERT INTO users VALUES('" + u.name + "','" + u.email + "')");
+            return true;
+        } catch(Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    public List getAllUsers() {
+        return db.query("SELECT * FROM users");
+    }
+}`;
+
+function loadSample() {
+  document.getElementById('codeInput').value = SAMPLE_CODE;
+  updateLineNumbers();
+  updateCharCount();
+}
+
+function updateLineNumbers() {
+  const textarea = document.getElementById('codeInput');
+  const lines = textarea.value.split('\n').length;
+  const lineNums = document.getElementById('lineNumbers');
+  lineNums.innerHTML = Array.from({length: lines}, (_, i) => 
+    `<div class="line-num">${i + 1}</div>`
+  ).join('');
+}
+
+function syncScroll() {
+  const textarea = document.getElementById('codeInput');
+  const lineNums = document.getElementById('lineNumbers');
+  lineNums.scrollTop = textarea.scrollTop;
+}
+
+function updateCharCount() {
+  const len = document.getElementById('codeInput').value.length;
+  document.getElementById('charCount').textContent = `${len} character${len !== 1 ? 's' : ''}`;
+}
+
+function getScoreClass(score) {
+  if (score >= 75) return 'score-high';
+  if (score >= 50) return 'score-mid';
+  return 'score-low';
+}
+
+function getCategoryClass(cat) {
+  const map = {
+    'Readability': 'cat-readability',
+    'Structure': 'cat-structure', 
+    'Maintainability': 'cat-maintainability',
+    'Performance': 'cat-performance',
+    'Security': 'cat-security'
+  };
+  return map[cat] || 'cat-readability';
+}
+
+function getNumClass(i) {
+  return ['num-1', 'num-2', 'num-3'][i] || 'num-1';
+}
+
+function updateProviderHint() {
+  const p = document.getElementById('providerSelect').value;
+  const input = document.getElementById('apiKeyInput');
+  const modelInput = document.getElementById('modelInput');
+  
+  if (p === 'groq') {
+    input.placeholder = "Get your free Groq API Key at console.groq.com";
+    modelInput.value = "llama-3.3-70b-versatile";
+  }
+  else if (p === 'gemini') {
+    input.placeholder = "Get your free Google Gemini API Key at aistudio.google.com";
+    modelInput.value = "gemini-1.5-flash";
+  }
+  else if (p === 'xai') {
+    input.placeholder = "Enter your xAI API Key (from console.x.ai)";
+    modelInput.value = "grok-2-latest";
+  }
+  else if (p === 'openai') {
+    input.placeholder = "Enter your OpenAI API Key (starts with sk-...)";
+    modelInput.value = "gpt-4o-mini";
+  }
+  else if (p === 'anthropic') {
+    input.placeholder = "Enter your Anthropic API Key";
+    modelInput.value = "claude-3-5-haiku-20241022";
+  }
+}
+
+function escapeHtmlAttr(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function syncModelFromSelect() {
+  const select = document.getElementById('modelSelect');
+  const val = select.value;
+  if (val) {
+    document.getElementById('modelInput').value = val;
+  }
+}
+
+function setModelOptions(models) {
+  const list = document.getElementById('modelList');
+  const select = document.getElementById('modelSelect');
+  list.innerHTML = models.map((m) => `<option value="${escapeHtmlAttr(m)}"></option>`).join('');
+  select.innerHTML = ['<option value="">Select model...</option>']
+    .concat(models.map((m) => `<option value="${escapeHtmlAttr(m)}">${escapeHtmlAttr(m)}</option>`))
+    .join('');
+  if (models.length > 0) {
+    document.getElementById('modelInput').value = models[0];
+    select.value = models[0];
+  }
+}
+
+async function fetchModels() {
+  const provider = document.getElementById('providerSelect').value;
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+
+  if (!apiKey) {
+    showError('Please enter an API Key before fetching models.');
+    return;
+  }
+
+  let endpoint, headers;
+  if (provider === 'groq') {
+    endpoint = 'https://api.groq.com/openai/v1/models';
+    headers = { 'Authorization': `Bearer ${apiKey}` };
+  } else if (provider === 'openai') {
+    endpoint = 'https://api.openai.com/v1/models';
+    headers = { 'Authorization': `Bearer ${apiKey}` };
+  } else if (provider === 'xai') {
+    endpoint = 'https://api.x.ai/v1/models';
+    headers = { 'Authorization': `Bearer ${apiKey}` };
+  } else if (provider === 'anthropic') {
+    endpoint = 'https://api.anthropic.com/v1/models';
+    headers = { 
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    };
+  } else if (provider === 'gemini') {
+    endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    headers = {};
+  }
+
+  try {
+    const res = await fetch(endpoint, { method: 'GET', headers });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        throw new Error("Invalid API Key. Please check your key and try again.");
+      }
+      throw new Error(errData.error?.message || `Error ${res.status}`);
+    }
+    const data = await res.json();
+
+    let models = [];
+    if (provider === 'gemini') {
+      models = (data.models || []).map((m) => (m.name || '').replace('models/', '')).filter(Boolean);
+    } else {
+      models = (data.data || []).map((m) => m.id).filter(Boolean);
+    }
+
+    models.sort();
+    if (models.length === 0) {
+      throw new Error('No models found for this provider.');
+    }
+
+    setModelOptions(models);
+    document.getElementById('errorMsg').classList.remove('show');
+  } catch (err) {
+    showError(err.message || 'Failed to fetch models.');
+    console.error(err);
+  }
+}
+
+async function reviewCode() {
+  const code = document.getElementById('codeInput').value.trim();
+  const lang = document.getElementById('langSelect').value;
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const provider = document.getElementById('providerSelect').value;
+  let modelName = document.getElementById('modelInput').value.trim();
+
+  if (!apiKey) {
+    showError('Please enter an API Key.');
+    return;
+  }
+  if (!code || code.length < 30) {
+    showError('Code is too short. Paste at least 30 characters.');
+    return;
+  }
+
+  // UI State
+  document.getElementById('reviewBtn').disabled = true;
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('loading').classList.add('show');
+
+  const prompt = `You are a senior backend engineer conducting a professional code review. Analyze the following ${lang} code snippet and respond ONLY with valid JSON exactly matching the requested format.
+
+Code to review:
+\`\`\`${lang}
+${code}
+\`\`\`
+
+Respond with this exact JSON structure (no extra text):
+{
+  "score": 85,
+  "positive": "One positive comment",
+  "improvements": [
+    {
+      "severity": "High",
+      "category": "Security",
+      "title": "Short title",
+      "description": "Explanation",
+      "suggestion": "Code fix"
+    }
+  ],
+  "summary": {
+    "readability": "Good",
+    "structure": "Fair",
+    "maintainability": "Poor"
+  }
+}`;
+
+  try {
+    let endpoint, headers, body, extractContent;
+
+    if (provider === 'xai') {
+      endpoint = 'https://api.x.ai/v1/chat/completions';
+      headers = { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${apiKey}` 
+      };
+
+      // Force correct model
+      if (!modelName || modelName.includes("llama") || modelName.length < 5) {
+        modelName = "grok-4.3";
+      }
+
+      body = JSON.stringify({
+        model: modelName,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 2500
+        // No response_format - this often causes 400 on xAI
+      });
+
+      extractContent = (data) => data.choices[0].message.content;
+    } 
+    else if (provider === 'groq') {
+      endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+      headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
+      body = JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 2000
+      });
+      extractContent = (data) => data.choices[0].message.content;
+    } 
+    else if (provider === 'openai') {
+      endpoint = 'https://api.openai.com/v1/chat/completions';
+      headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
+      body = JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.3
+      });
+      extractContent = (data) => data.choices[0].message.content;
+    } 
+    else if (provider === 'gemini') {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      headers = { 'Content-Type': 'application/json' };
+      body = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+      });
+      extractContent = (data) => data.candidates[0].content.parts[0].text;
+    } 
+    else if (provider === 'anthropic') {
+      endpoint = 'https://api.anthropic.com/v1/messages';
+      headers = { 
+        'Content-Type': 'application/json', 
+        'x-api-key': apiKey, 
+        'anthropic-version': '2023-06-01'
+      };
+      body = JSON.stringify({
+        model: modelName,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3
+      });
+      extractContent = (data) => data.content[0].text;
+    }
+
+    const response = await fetch(endpoint, { method: 'POST', headers, body });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      console.error("Full API Error:", errData);   // ← Check this in console
+      if (response.status === 401) {
+        throw new Error("Invalid API Key. Please check your key and try again.");
+      }
+      throw new Error(errData.error?.message || `Error ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rawText = extractContent(data);
+    
+    let result;
+    try {
+      const cleaned = rawText.replace(/```json|```/g, '').trim();
+      result = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Raw response:", rawText);
+      throw new Error("AI did not return valid JSON.");
+    }
+
+    renderResults(result);
+
+  } catch (err) {
+    console.error(err);
+    showError(err.message || "Request failed", true);
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+    document.getElementById('reviewBtn').disabled = false;
+  }
+}
+function renderResults(result) {
+  const score = result.score || 0;
+  const scoreBadge = document.getElementById('scoreBadge');
+  scoreBadge.textContent = `Score: ${score}/100`;
+  scoreBadge.className = `score-badge ${getScoreClass(score)}`;
+
+  document.getElementById('positiveText').textContent = result.positive || '';
+
+  const grid = document.getElementById('improvementsGrid');
+  grid.innerHTML = (result.improvements || []).slice(0, 10).map((imp, i) => {
+    const severityClass = `severity-${(imp.severity || 'medium').toLowerCase()}`;
+    const severityText = (imp.severity || 'Medium').toUpperCase();
+    return `
+      <div class="improvement-card">
+        <div class="improvement-num ${getNumClass(i % 3)}">${i + 1}</div>
+        <div class="improvement-content">
+          <div class="improvement-category ${getCategoryClass(imp.category)}">
+            <span class="severity-badge ${severityClass}">${severityText}</span>
+            ${imp.category}
+          </div>
+          <div class="improvement-title">${imp.title}</div>
+          <div class="improvement-desc">${imp.description}</div>
+          ${imp.suggestion ? `<div class="code-suggestion">${escapeHtml(imp.suggestion)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const summary = result.summary || {};
+  const summaryColors = { Poor: '#ef4444', Fair: '#f59e0b', Good: '#00d4ff', Excellent: '#10b981' };
+  document.getElementById('summaryBar').innerHTML = Object.entries(summary).map(([key, val]) => `
+    <div class="summary-item">
+      <div class="summary-dot" style="background:${summaryColors[val] || '#64748b'}"></div>
+      <span class="summary-label">${key}:</span>
+      <span class="summary-value">${val}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('results').classList.add('show');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showError(msg, showRetry = false) {
+  const el = document.getElementById('errorMsg');
+  const errorText = document.getElementById('errorText');
+  const retryBtn = document.getElementById('retryBtn');
+  
+  errorText.textContent = '⚠ ' + msg;
+  retryBtn.style.display = showRetry ? 'block' : 'none';
+  el.classList.add('show');
+  document.getElementById('loading').classList.remove('show');
+  document.getElementById('reviewBtn').disabled = false;
+}
+
+function resetReview() {
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('codeInput').focus();
+}
+
+// Init
+updateLineNumbers();
+updateProviderHint();
+
+// Load and save API key automatically
+document.getElementById('apiKeyInput').value = localStorage.getItem('codesense_api_key') || '';
+document.getElementById('apiKeyInput').addEventListener('input', (e) => {
+  localStorage.setItem('codesense_api_key', e.target.value);
+});
+</script>
+</body>
+</html>
